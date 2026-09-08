@@ -5,12 +5,12 @@
 channels:
 
   motivation:
-    name: "Daily Discipline"
-    niche: motivation
-    audience: "men & women 18–34 chasing self-improvement and discipline"
-    angle: "hard-truth, no-fluff motivation grounded in stoicism and action"
-    tone: "punchy, intense, cinematic"
-    voice: en-US-GuyNeural        # overrides tts.edge_voice
+    name: "Disciplina Diária"
+    niche: motivação
+    audience: "homens e mulheres de 18–34 anos buscando autocontrole e evolução pessoal"
+    angle: "motivação direta e sem enrolação, ancorada em estoicismo e ação prática"
+    tone: "direto, intenso, cinematográfico"
+    voice: pt-BR-AntonioNeural   # masculine, intense (overrides tts.edge_voice)
     visual_style: "cinematic, moody, slow-motion, urban, gym, nature, dramatic light"
     music_mood: "epic, building, inspirational"
     platforms: [youtube, tiktok, instagram, facebook]
@@ -18,12 +18,12 @@ channels:
     posts_per_day: 2
 
   money:
-    name: "Money Mechanics"
-    niche: finance
-    audience: "20–40 yr olds who want practical money + side-hustle tips"
-    angle: "one actionable money concept per video, plainly explained"
-    tone: "confident, clear, slightly contrarian"
-    voice: en-US-AriaNeural
+    name: "Mecânica do Dinheiro"
+    niche: finanças
+    audience: "pessoas de 20–40 anos que querem dicas práticas de dinheiro e renda extra"
+    angle: "um conceito financeiro prático por vídeo, explicado de forma simples"
+    tone: "confiante, claro, levemente contrário ao senso comum"
+    voice: pt-BR-ThalitaMultilingualNeural
     visual_style: "clean, modern, money, city, charts b-roll, lifestyle"
     music_mood: "upbeat, modern, light"
     platforms: [youtube, tiktok, instagram, facebook]
@@ -31,12 +31,12 @@ channels:
     posts_per_day: 1
 
   facts:
-    name: "Mind Blown Facts"
-    niche: psychology
-    audience: "general curious audience, all ages"
-    angle: "surprising psychology + science facts with a curiosity hook"
-    tone: "intriguing, friendly, fast-paced"
-    voice: en-US-JennyNeural
+    name: "Fatos Surpreendentes"
+    niche: psicologia
+    audience: "público curioso em geral, todas as idades"
+    angle: "fatos surpreendentes de psicologia e ciência com gancho de curiosidade"
+    tone: "intrigante, amigável, com ritmo acelerado"
+    voice: pt-BR-FranciscaNeural
     visual_style: "abstract, brain, space, nature macro, satisfying visuals"
     music_mood: "curious, playful, light electronic"
     platforms: [youtube, tiktok, instagram, facebook]
@@ -49,7 +49,7 @@ channels:
   #   audience: ""
   #   angle: ""
   #   tone: ""
-  #   voice: en-US-AriaNeural
+  #   voice: pt-BR-FranciscaNeural
   #   visual_style: ""
   #   music_mood: ""
   #   platforms: [youtube, tiktok, instagram, facebook]

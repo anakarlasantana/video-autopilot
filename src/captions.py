@@ -36,7 +36,10 @@ def build_captions(cfg: dict, voice_path: Path, out_dir: Path,
 
     style = cfg["captions"]["style"]
     model = WhisperModel(cfg["captions"].get("model", "base"), compute_type="int8")
-    segments, _ = model.transcribe(str(voice_path), word_timestamps=True)
+    lang_hint = cfg["captions"].get("language")  # e.g. "pt"; None → auto-detect
+    segments, _ = model.transcribe(
+        str(voice_path), language=lang_hint, word_timestamps=True,
+    )
 
     # Flatten to words with timings.
     words = []

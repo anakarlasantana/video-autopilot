@@ -11,14 +11,21 @@ from .utils import extract_json, log
 def build_metadata(cfg: dict, script: dict, idea: Optional[dict] = None) -> dict:
     ch = cfg["channel"]
     idea = idea or {}
+    lang = cfg.get("language", {}).get("code", "English")
     prompt = load_prompt("metadata").format(
         niche=ch["niche"], name=ch["name"], full_script=script["full_script"],
+        language=lang,
         primary_keyword=idea.get("primary_keyword", idea.get("title", ch["niche"])),
         search_question=idea.get("search_question", ""),
         title_variants=cfg["metadata"]["title_variants"],
         hashtags_per_post=cfg["metadata"]["hashtags_per_post"],
     )
     meta = extract_json(complete(prompt, cfg, max_tokens=800))
+    for key in ("titles", "description"):
+        if not meta.get(key):
+            raise RuntimeError(
+                f"Metadata missing '{key}'. Keys present: {sorted(meta)}"
+            )
 
     # Append compliance lines to the description.
     extra = []
@@ -26,7 +33,10 @@ def build_metadata(cfg: dict, script: dict, idea: Optional[dict] = None) -> dict
     if dkey:
         extra.append(cfg["compliance"]["disclaimers"].get(dkey, ""))
     if cfg["compliance"].get("ai_disclosure"):
-        extra.append("Created with AI assistance.")
+        extra.append(
+            "Criado com assistência de IA."
+            if lang.lower().startswith("pt") else "Created with AI assistance."
+        )
     if extra:
         meta["description"] = meta.get("description", "") + "\n\n" + " ".join(filter(None, extra))
 

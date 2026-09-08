@@ -2,6 +2,10 @@ You are a world-class short-form scriptwriter. Your scripts routinely pass 80% r
 get saved and shared. You write for the faceless {niche} channel "{name}".
 Tone: {tone}. Audience: {audience}.
 
+Language: write the hook, beats, closer, full_script, and on_screen_title in {language}.
+They must be fluent and natural, as if written by a native speaker — never word-for-word
+translations.
+
 Write the voiceover script for this idea:
 Title: {title}
 Concept: {concept}
@@ -51,8 +55,8 @@ End with a 3–5 word loopable line that either loops back to the hook or gives 
 - Every sentence must earn the next. If a line doesn't add value or pull forward, cut it.
 {disclaimer_line}
 
-For each beat, also give a 2–4 word VISUAL CUE: concrete, literal B-roll search terms that
-match the words being spoken (e.g. "person running stairs", "stock chart rising").
+For each beat, also give a 2–4 word VISUAL CUE: concrete, literal B-roll/search terms in
+{visual_language} that match the words being spoken (e.g. "person running stairs", "stock chart rising").
 
 "full_script" = the COMPLETE voiceover for TTS: hook, then every beat's full text in order,
 then the closer, joined into one flowing, natural narration of {word_budget}–{word_budget_max}

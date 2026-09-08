@@ -21,11 +21,13 @@ def generate_idea(cfg: dict) -> dict:
     ch = cfg["channel"]
     trends = get_trends(cfg)
     notes = strategy_notes(ch["key"])
+    lang = cfg.get("language", {}).get("code", "English")
     prompt = load_prompt("ideation").format(
         niche=ch["niche"],
         name=ch["name"],
         audience=ch["audience"],
         angle=ch["angle"],
+        language=lang,
         trends="\n".join(f"- {t}" for t in trends) or "(none — use your niche expertise)",
         recent_topics="\n".join(f"- {t}" for t in recent_topics(ch["key"])) or "(none yet)",
         creator_notes=notes or "(none provided)",
@@ -34,7 +36,13 @@ def generate_idea(cfg: dict) -> dict:
     data = extract_json(complete(prompt, cfg, max_tokens=1200))
     ideas = data.get("ideas", [])
     if not ideas:
-        raise RuntimeError("Ideation returned no ideas.")
+        raise RuntimeError(
+            f"Ideation returned no ideas. Keys present: {sorted(data)}"
+        )
     best = ideas[0]  # already ranked best-first by the prompt
+    try:
+        best["save_worthiness"] = int(best.get("save_worthiness") or 0)
+    except (TypeError, ValueError):
+        best["save_worthiness"] = 0
     log(f"idea: \"{best['title']}\" (save-worthiness {best.get('save_worthiness', '?')}/5)", "ok")
     return best

@@ -34,6 +34,11 @@ def complete(prompt: str, cfg: dict, max_tokens: int = 1500) -> str:
     provider = llm.get("provider", "anthropic")
     if provider == "anthropic":
         return _anthropic(prompt, llm, max_tokens)
+    if provider == "ollama":
+        # Local models drift from the schema when they free-wheel. The native
+        # endpoint with format="json" constrains the grammar to valid JSON,
+        # which is exactly what every consumer in this repo expects.
+        return _ollama(prompt, llm, max_tokens)
     if provider in _OPENAI_COMPATIBLE:
         return _openai_compatible(provider, prompt, llm, max_tokens)
     raise ValueError(
@@ -56,6 +61,58 @@ def _anthropic(prompt: str, llm: dict, max_tokens: int) -> str:
         messages=[{"role": "user", "content": prompt}],
     )
     return "".join(block.text for block in resp.content if block.type == "text")
+
+
+def _ollama(prompt: str, llm: dict, max_tokens: int) -> str:
+    """Ollama native /api/chat with forced JSON grammar.
+
+    The OpenAI-compatible HTTP layer Ollama exposes cannot request JSON mode,
+    so a small local model often returns prose wrapped around the JSON (or a
+    truncated/escaped object) and `extract_json` blows up. Calling the native
+    endpoint with ``format: "json"`` makes Ollama apply a JSON-restricted
+    grammar and the model physically cannot emit anything else.
+    """
+    import time
+
+    import requests
+
+    base = (llm.get("base_url") or "http://localhost:11434/v1").rstrip("/")
+    if base.endswith("/v1"):
+        base = base[:-3]  # native API lives at /api/chat, not under /v1
+    url = base + "/api/chat"
+
+    payload = {
+        "model": llm.get("model", "llama3.1"),
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+        "format": "json",  # hard grammar constraint → always valid JSON
+        "options": {
+            "temperature": llm.get("temperature", 0.9),
+            "num_predict": max_tokens,
+            # 8k context comfortably fits our longest prompt (script + voice
+            # reference) without making CPU inference slower than it already is.
+            "num_ctx": int(llm.get("num_ctx", 8192)),
+        },
+    }
+
+    retries = int(llm.get("max_retries", 4))
+    timeout = int(llm.get("timeout", 900))  # local CPU inference is slow
+    for attempt in range(retries + 1):
+        try:
+            r = requests.post(url, json=payload, timeout=timeout)
+            r.raise_for_status()
+            return r.json().get("message", {}).get("content", "") or ""
+        except requests.RequestException as e:
+            if attempt == retries:
+                raise SystemExit(
+                    f"Ollama request failed after {retries} retries: {e}\n"
+                    "Is it running? (try: `ollama serve` then pull the model)."
+                )
+            wait = min(2 ** attempt * 2, 30)
+            print(f"  ! Ollama unreachable; retrying in {wait}s "
+                  f"(attempt {attempt + 1}/{retries})", flush=True)
+            time.sleep(wait)
+    return ""  # unreachable
 
 
 def _openai_compatible(provider: str, prompt: str, llm: dict, max_tokens: int) -> str:

@@ -196,9 +196,9 @@ Open `config/channels.yaml`. Three channels ship ready to run:
 
 | Key | Name | Niche | Cadence |
 |-----|------|-------|---------|
-| `motivation` | Daily Discipline | motivation | 2/day |
-| `money` | Money Mechanics | finance | 1/day |
-| `facts` | Mind Blown Facts | psychology | 1/day |
+| `motivation` | Disciplina Diária | motivação | 2/day |
+| `money` | Mecânica do Dinheiro | finanças | 1/day |
+| `facts` | Fatos Surpreendentes | psicologia | 1/day |
 
 Each block controls the niche, audience, angle, tone, voice, visual style, target platforms,
 and `posts_per_day`. To add a channel, copy the commented template at the bottom of the file,
@@ -207,6 +207,19 @@ rename the key, and fill in the fields.
 Global pipeline behavior (video size, caption style, loudness, providers, etc.) lives in
 `config/settings.yaml`. Both files are editable from the dashboard's **Settings** tab, which
 validates the YAML before saving.
+
+**Language** — every word the pipeline produces (scripts, voiceovers, captions, titles,
+descriptions, hashtags) follows `settings.yaml`:
+
+```yaml
+language:
+  code: pt-BR    # language for ALL written content
+  visuals: en    # internal B-roll search terms (keep "en" for better Pexels matches)
+```
+
+Pair it with a matching `tts.edge_voice` (e.g. `pt-BR-FranciscaNeural`, `pt-BR-AntonioNeural`,
+`pt-BR-ThalitaMultilingualNeural`) and a `captions.language` hint (`pt`) for accurate
+word-timing captions.
 
 ---
 

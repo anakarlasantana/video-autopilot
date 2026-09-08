@@ -1,6 +1,17 @@
 # ── Global pipeline settings ─────────────────────────────────────────────────
 # Provider choices: swap these to change adapters with zero code changes.
 
+# ── Language ─────────────────────────────────────────────────────────────────
+# `code`      → the language for ALL written content the LLM produces: scripts,
+#               voiceover text, on-screen captions, titles, descriptions,
+#               hashtags and comments.
+# `visuals`   → the language for the internal B-roll stock-search terms only.
+#               Keep "en" for the best Pexels matches even when producing
+#               pt-BR content (the search terms never appear in the video).
+language:
+  code: pt-BR
+  visuals: en
+
 llm:
   # provider options:
   #   PAID  anthropic  (model: claude-opus-4-8 best | claude-sonnet-4-6 fast/cheap)
@@ -9,14 +20,15 @@ llm:
   #   FREE  groq       fast, generous free tier — model: llama-3.3-70b-versatile
   #   FREE  openrouter many free models — model: meta-llama/llama-3.1-8b-instruct:free
   #   FREE  gemini     Google free tier — model: gemini-flash-latest (auto-tracks newest flash)
-  provider: gemini
-  model: gemini-flash-latest
+  provider: ollama
+  model: llama3.2:3b 
+  base_url: http://localhost:11434/v1 
   temperature: 0.9             # higher = more creative hooks
 
 tts:
   provider: edge               # edge (free, no key) | elevenlabs (premium)
   speed: 1.08                  # 1.05–1.15 reads energetic; Playbook §2
-  edge_voice: en-US-AriaNeural # see `edge-tts --list-voices`
+  edge_voice: pt-BR-FranciscaNeural  # see `edge-tts --list-voices` (pt-BR voices available)
   edge_rate: "+0%"             # extra pacing on top of speed; e.g. "+8%"
   edge_pitch: "+0Hz"           # subtle warmth/energy; e.g. "+2Hz"
   elevenlabs_voice: Rachel     # ElevenLabs voice name/id (premium = best audio)
@@ -31,6 +43,7 @@ visuals:
 captions:
   enabled: true
   model: base                  # whisper: tiny | base | small (accuracy vs speed)
+  language: pt                 # whisper language hint for word timing ("pt", "en", …)
   hook_title_seconds: 2.6      # how long the animated hook title flashes on screen
   style:
     font: assets/fonts/Montserrat-ExtraBold.ttf
@@ -73,7 +86,12 @@ publish:
 compliance:
   ai_disclosure: true          # adds AI-assisted note + platform synthetic-media flag
   disclaimers:
-    finance: "Not financial advice. For educational purposes only."
-    health: "Not medical advice. Consult a professional."
+    finance: "Não é recomendação financeira. Apenas para fins educacionais."
+    health: "Não é recomendação médica. Consulte um profissional."
 
 output_dir: output
+logging:
+  level: DEBUG
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  handlers:
+    console: true   # força a saída para o terminal

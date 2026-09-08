@@ -12,8 +12,12 @@ from .utils import extract_json, log
 def write_script(cfg: dict, idea: dict) -> dict:
     ch = cfg["channel"]
     target = cfg["video"]["target_seconds"]
-    word_budget = int(target * 2.4)      # ~2.4 spoken words/sec — lower bound
-    word_budget_max = int(target * 3.0)  # upper bound for a brisk read
+    lang = cfg.get("language", {}).get("code", "English")
+    visuals_lang = cfg.get("language", {}).get("visuals", "en")
+    # ~2.4 spoken words/sec for English; Portuguese reads a touch slower (~2.2).
+    wps = 2.2 if lang.lower().startswith("pt") else 2.4
+    word_budget = int(target * wps)      # lower bound
+    word_budget_max = int(target * (wps + 0.6))  # upper bound for a brisk read
 
     disclaimer_line = ""
     dkey = ch.get("inject_disclaimer")
@@ -26,6 +30,7 @@ def write_script(cfg: dict, idea: dict) -> dict:
     notes = strategy_notes(ch["key"])
     prompt = load_prompt("script").format(
         niche=ch["niche"], name=ch["name"], tone=ch["tone"], audience=ch["audience"],
+        language=lang, visual_language=visuals_lang,
         title=idea["title"], concept=idea["concept"], hook_angle=idea.get("hook_angle", ""),
         primary_keyword=idea.get("primary_keyword", idea["title"]),
         search_question=idea.get("search_question", ""),
@@ -37,7 +42,9 @@ def write_script(cfg: dict, idea: dict) -> dict:
 
     script = extract_json(complete(prompt, cfg, max_tokens=1500))
     if not script.get("full_script"):
-        raise RuntimeError("Scriptwriter returned no full_script.")
+        raise RuntimeError(
+            f"Scriptwriter returned no full_script. Keys present: {sorted(script)}"
+        )
 
     # Small free models tend to under-write. Expand the draft toward the budget
     # (models hit a target far better when expanding existing text than writing cold).

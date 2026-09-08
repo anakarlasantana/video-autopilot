@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 import sys
+import unicodedata
 from datetime import date
 from pathlib import Path
 
@@ -29,6 +30,10 @@ def die(msg: str) -> None:
 
 
 def slugify(text: str, max_len: int = 50) -> str:
+    # Transliterate accents ("ação" → "acao", "você" → "voce") so non-ASCII
+    # titles still produce clean, matching folder/file names.
+    text = unicodedata.normalize("NFKD", text)
+    text = text.encode("ascii", "ignore").decode("ascii")
     s = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
     return s[:max_len].strip("-") or "video"
 
