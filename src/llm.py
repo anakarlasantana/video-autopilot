@@ -23,7 +23,7 @@ from .config import env
 _OPENAI_COMPATIBLE = {
     "openai":     (None,                                              "OPENAI_API_KEY",     "gpt-4o-mini",                        True),
     "ollama":     ("http://localhost:11434/v1",                       None,                 "llama3.1",                          False),
-    "groq":       ("https://api.groq.com/openai/v1",                  "GROQ_API_KEY",       "llama-3.3-70b-versatile",           True),
+    "groq":       ("https://api.groq.com/openai/v1",                  "GROQ_API_KEY",       "openai/gpt-oss-20b",                      True),
     "openrouter": ("https://openrouter.ai/api/v1",                    "OPENROUTER_API_KEY", "meta-llama/llama-3.1-8b-instruct:free", True),
     "gemini":     ("https://generativelanguage.googleapis.com/v1beta/openai/", "GEMINI_API_KEY", "gemini-flash-latest",         True),
 }
@@ -137,16 +137,31 @@ def _openai_compatible(provider: str, prompt: str, llm: dict, max_tokens: int) -
     # Gemini's newer models "think" before answering, silently eating into max_tokens
     # and truncating short JSON tasks. We can't reliably turn thinking off through this
     # compat layer, so just give it generous headroom instead.
-    call_max_tokens = max(max_tokens, 4096) if provider == "gemini" else max_tokens
+    # Same for Groq's gpt-oss reasoning models: they burn tokens on hidden
+    # reasoning, so small budgets (200-1500) truncate the visible answer.
+    call_max_tokens = max(max_tokens, 4096) if provider in ("gemini", "groq") else max_tokens
 
     def _call():
-        resp = client.chat.completions.create(
+        kwargs: dict = dict(
             model=llm.get("model", fallback_model),
             max_tokens=call_max_tokens,
             temperature=llm.get("temperature", 0.9),
             messages=[{"role": "user", "content": prompt}],
         )
-        return resp.choices[0].message.content or ""
+        # gpt-oss reasoning models: cap the hidden thinking. "low" is plenty for
+        # JSON tasks, cuts latency ~5x and avoids the empty-content failure mode
+        # where all tokens are burned on reasoning before any text is emitted.
+        if provider == "groq" and "gpt-oss" in str(kwargs["model"]):
+            kwargs["reasoning_effort"] = llm.get("reasoning_effort", "low")
+        # NOTE: response_format={"type": "json_object"} is NOT sent: Groq's
+        # gpt-oss models reject it on plain-text prompts, and our prompts
+        # already say "Return ONLY valid JSON". extract_json handles fences.
+        resp = client.chat.completions.create(**kwargs)
+        content = resp.choices[0].message.content or ""
+        if not content.strip():
+            # Reasoning ate the whole budget — retryable (caught by _with_retry).
+            raise ValueError("empty completion (model returned no visible content)")
+        return content
 
     return _with_retry(_call, llm)
 
@@ -164,7 +179,7 @@ def _with_retry(call, llm: dict):
     for attempt in range(retries + 1):
         try:
             return call()
-        except (RateLimitError, APIConnectionError) as e:
+        except (RateLimitError, APIConnectionError, ValueError) as e:
             if attempt == retries:
                 raise
             wait = _retry_after(e) or min(2 ** attempt * 2, 30)

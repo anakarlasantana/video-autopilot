@@ -17,6 +17,14 @@ Recent trends/keywords to consider (may be empty):
 Topics we've ALREADY covered (do NOT repeat or rephrase these):
 {recent_topics}
 
+TREND ANCHORING (the seeds above are TODAY's real headlines and live search demand — treat them as the source of truth):
+- At least 4 of the {n} ideas MUST be anchored to a specific seed: in "trend_anchor" copy the exact
+  headline or search term the idea is built on. Copy it verbatim, do not paraphrase.
+- At most 2 ideas may be evergreen (no anchor; use "trend_anchor": "").
+- When a seed is a live search term, reuse its exact phrasing as "primary_keyword".
+- NEVER invent facts, numbers, prices, dates or product names that are not present in the seeds.
+  If a seed mentions a rumor, frame the idea AS a rumor ("por que o rumor de...").
+
 Generate {n} video ideas engineered to go viral AND to be discoverable. Apply these rules:
 
 WHAT MAKES IT VIRAL (every idea must have at least one):
@@ -51,6 +59,7 @@ Return ONLY valid JSON, no prose:
       "search_question": "the exact question a viewer would type or ask that this answers",
       "hook_angle": "the pattern-interrupt the video opens with",
       "why_viral": "the specific emotional trigger and share/save reason",
+      "trend_anchor": "the exact seed (headline/search term) this idea rides, or \"\" for evergreen",
       "save_worthiness": 4
     }}
   ]

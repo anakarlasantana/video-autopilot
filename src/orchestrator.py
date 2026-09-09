@@ -37,7 +37,7 @@ def make_one(cfg: dict) -> dict:
     (out / "script.txt").write_text(script["full_script"], encoding="utf-8")
     voice = synthesize(cfg, script["full_script"], out)         # 3
     dur = ffprobe_duration(voice)
-    clips = gather_visuals(cfg, script, out, dur)               # 4
+    clips = gather_visuals(cfg, script, out, dur, idea)    # 4 (idea -> topic-biased B-roll)
     captions = build_captions(cfg, voice, out,                  # 5
                               hook_title=script.get("on_screen_title", ""))
     video = assemble(cfg, clips, voice, captions, out)          # 6

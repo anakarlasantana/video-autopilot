@@ -19,3 +19,8 @@ uvicorn[standard]>=0.27
 python-multipart>=0.0.9
 
 # ffmpeg is a SYSTEM dependency — installed via scripts/install_mac.sh (brew install ffmpeg)
+
+# Scraper (multi-source free B-roll: parallel search + ranking)
+yt-dlp>=2024.8.6          # YouTube/Vimeo/TikTok search + short-excerpt download, no key
+ddgs>=6.0.0               # DuckDuckGo images/videos (free, no key) — guaranteed net
+google-api-python-client>=2.0  # Google Custom Search images (official, 100/day free)

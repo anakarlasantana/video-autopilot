@@ -3,8 +3,9 @@ get saved and shared. You write for the faceless {niche} channel "{name}".
 Tone: {tone}. Audience: {audience}.
 
 Language: write the hook, beats, closer, full_script, and on_screen_title in {language}.
-They must be fluent and natural, as if written by a native speaker — never word-for-word
-translations.
+CRITICAL: every single sentence MUST be in {language}. NEVER mix languages and NEVER
+write any sentence in English (except proper nouns). They must be fluent and natural,
+as if written by a native speaker — never word-for-word translations.
 
 Write the voiceover script for this idea:
 Title: {title}
@@ -55,8 +56,25 @@ End with a 3–5 word loopable line that either loops back to the hook or gives 
 - Every sentence must earn the next. If a line doesn't add value or pull forward, cut it.
 {disclaimer_line}
 
-For each beat, also give a 2–4 word VISUAL CUE: concrete, literal B-roll/search terms in
-{visual_language} that match the words being spoken (e.g. "person running stairs", "stock chart rising").
+For each beat, also give a 2–6 word VISUAL CUE: concrete B-roll/search terms in
+{visual_language} that match the words being spoken. CRITICAL RULES for visual_cue:
+1. MUST include the channel's topic/keyword (e.g. for a GTA channel: "GTA 6 gameplay
+   trailer", "Vice City sunset", "GTA 6 PC port" — NEVER generic cues like "car driving"
+   or "city skyline" with no topic).
+2. MUST be directly related to the specific content of the beat — the visual should
+   illustrate what is being said in that exact moment.
+3. MUST NOT include people/persons/faces/talking — we use only B-roll footage of
+   objects, landscapes, gameplay, animations, or abstract visuals. Never reference
+   people, interviews, or portraits.
+4. MUST be specific and concrete — "GTA 6 Vice City beach" not just "beach",
+   "GTA 6 character customization" not just "character".
+5. MUST be UNIQUE for each beat — every visual_cue should be DIFFERENT from the others.
+   If all beats have the same cue, the video will show identical B-roll throughout.
+   Vary the visual element based on the specific content of each beat (e.g. for a
+   discipline/motivation channel: "disciplina manhã rotina", "disciplina treino foco",
+   "disciplina trabalho produtividade", "disciplina noite descanso").
+The cue is used to search stock footage, so it must contain the niche subject AND
+the specific visual element or the results will be off-topic.
 
 "full_script" = the COMPLETE voiceover for TTS: hook, then every beat's full text in order,
 then the closer, joined into one flowing, natural narration of {word_budget}–{word_budget_max}

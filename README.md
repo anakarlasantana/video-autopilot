@@ -66,7 +66,8 @@ publish → analytics feedback loop.**
 | **ffmpeg** | Video/audio assembly | Installed automatically by the setup script. |
 | **Homebrew** (macOS) | Installs ffmpeg | Get it at [brew.sh](https://brew.sh) if you don't have it. |
 | **An LLM API key** | Scripts + ideas | **Anthropic Claude** (default) or OpenAI. Required. |
-| **A Pexels API key** | Free stock B-roll | Free, unlimited. Required for the default visuals provider. |
+| **A Pexels API key** | Free stock B-roll | Free, unlimited. Used by the default `auto` chain (Pexels → scraper). |
+| **Scraper deps** | Multi-source free B-roll | `yt-dlp` + `ddgs` + `google-api-python-client` (via `requirements.txt`). No key needed for YouTube/DuckDuckGo/Openverse/Archive. |
 | ~2 GB disk | Whisper model + renders | The caption model downloads once on first run. |
 
 Everything else (premium voices, AI images, auto-publishing) is **optional** and opt-in.
@@ -126,7 +127,11 @@ PEXELS_API_KEY=...
 | `OPENROUTER_API_KEY` | [openrouter.ai/keys](https://openrouter.ai/keys) | **Free models available** | Free LLM (`llm.provider: openrouter`) |
 | `GEMINI_API_KEY` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | **Free tier** | Free LLM (`llm.provider: gemini`) |
 | *(none — Ollama)* | [ollama.com](https://ollama.com) | **Free, local, no key** | Free offline LLM (`llm.provider: ollama`) |
-| `PEXELS_API_KEY` | [pexels.com/api](https://www.pexels.com/api/) | **Free, unlimited** | Stock B-roll (default visuals) |
+| `PEXELS_API_KEY` | [pexels.com/api](https://www.pexels.com/api/) | **Free, unlimited** | Stock B-roll (default `auto` chain: Pexels → scraper) |
+| `PIXABAY_API_KEY` | [pixabay.com/api/docs](https://pixabay.com/api/docs/) | **Free** | Scraper video+image |
+| `UNSPLASH_ACCESS_KEY` | [unsplash.com/developers](https://unsplash.com/developers) | **Free, 1000 req/h** | Scraper portrait photos |
+| `GOOGLE_API_KEY` + `GOOGLE_CX` | [console.cloud.google.com](https://console.cloud.google.com) + [cse.google.com](https://cse.google.com) | **Free 100/day** | Scraper Google images (official API) |
+| `GIPHY_API_KEY` | [developers.giphy.com](https://developers.giphy.com) | **Free** | Scraper short vertical clips |
 | `ELEVENLABS_API_KEY` | [elevenlabs.io](https://elevenlabs.io) | Free tier (10k chars/mo), then paid | Premium voiceover (optional) |
 | `FAL_KEY` | [fal.ai](https://fal.ai) | Pay-per-image | AI-generated visuals (optional) |
 | `REPLICATE_API_TOKEN` | [replicate.com](https://replicate.com) | Pay-per-image | AI-generated visuals (optional) |
@@ -366,7 +371,7 @@ option**. Switch providers in `config/settings.yaml` — **no code changes**.
 |-------|---------------------|-----------------|
 | LLM (ideas+script) | **Ollama** (local) · **Groq / OpenRouter / Gemini** (free tiers) | **Claude** (`claude-opus-4-8`/`claude-sonnet-4-6`) or GPT |
 | Voiceover | `edge-tts` (free, no key) | **ElevenLabs** (best retention) |
-| Visuals | **Pexels** stock (free) | AI images (fal / Replicate) |
+| Visuals | **auto** = Pexels → scraper (default, all free) │ `scraper` (multi-source ranked) │ `pexels` │ AI images (fal / Replicate, paid) |
 | Captions | `faster-whisper` (local, free) | — |
 | Assembly | **ffmpeg** (free) | — |
 | Publishing | `dry_run` (free, local only) | **Ayrshare / upload-post** (1 API → all 4 platforms) |
@@ -379,16 +384,107 @@ LLM cost is roughly **$0.01–0.03 per video**; the only fixed cost is the publi
 
 ---
 
+## 11b. Scraper visuals (multi-source free B-roll)
+
+Default `visuals.provider: auto` tries **Pexels first, then the scraper** per beat (`fallback_chain: [pexels, scraper]`).
+Set `provider: scraper` for scraper-only, or `provider: pexels` for legacy behavior.
+
+**How it works (`scraper_mode: best`):** for each beat query the pipeline searches all free sources **in parallel**
+(metadata only), scores candidates (`relevance 40 / quality 25 / vertical 15 / duration 10 / license 10`,
+plus video + portrait + official-trailer bonuses, minus reuse penalty), downloads **only the winner**
+(YouTube/Vimeo = short ≤8s excerpt via `yt-dlp --download-sections`, fair-use friendly), validates it
+(format + size + `ffprobe` duration) and saves an audit trail to `clips/NN.json` (top-5 with source/score/URL).
+If every source fails for a beat, the previous clip is reused so the run never breaks.
+
+| # | Source | Type | Key needed | License |
+|---|--------|------|------------|---------|
+| 1 | YouTube (`yt-dlp`) | video | no | short excerpt + original narration/grade/captions |
+| 2 | DuckDuckGo video → `yt-dlp` | video (YouTube/Vimeo/TikTok discoverer) | no | same as destination |
+| 3 | Pixabay video+image | video/image | `PIXABAY_API_KEY` (free) | free commercial |
+| 4 | Pexels photos | image portrait | `PEXELS_API_KEY` (you already have it) | free commercial |
+| 5 | Unsplash | image 1080p+ | `UNSPLASH_ACCESS_KEY` (free, 1000 req/h) | free commercial |
+| 6 | Google Images (Custom Search API) | image xlarge | `GOOGLE_API_KEY` + `GOOGLE_CX` (100/day free) | filter `cc_*` when `scraper_cc_only: true` |
+| 7 | Giphy | short vertical `.mp4` | `GIPHY_API_KEY` (free) | free for social/remix |
+| 8 | Openverse + Wikimedia Commons | image/video | no | 100% Creative Commons |
+| 9 | Internet Archive | public-domain video | no | public domain |
+| 10 | DuckDuckGo images (`ddgs`) | image (guaranteed net) | no | last resort, first valid URL wins |
+
+Sources without a key are **skipped automatically** — zero-key runs already work via
+YouTube + DDG + Pexels photos + Openverse/Commons + Archive + DDG images.
+
+```yaml
+# config/settings.yaml
+visuals:
+  provider: auto               # pexels | scraper | fal | replicate | auto
+  fallback_chain: [pexels, scraper]
+  scraper_mode: best           # best (parallel + ranking) | first (sequential cascade)
+  scraper_sources: [youtube, ddg_video_ytdlp, pixabay, pexels_photo, unsplash, google_cse, giphy, openverse_commons, archive, ddg_image]
+  candidates_per_source: 3
+  max_workers: 6
+  scraper_max_seconds: 8       # short fair-use excerpt only
+  scraper_cc_only: false       # true = Creative Commons only (safer, fewer hits)
+```
+
+```bash
+source .venv/bin/activate
+python scripts/test_rank.py "GTA 6 trailer city chase"       # print top-5 ranking
+python scripts/test_rank.py --download "money city night"    # also download the winner
+```
+
+> ⚖️ Keep excerpts short (≤8s), prefer official/CC sources, credit CC material in the description
+> (see `docs/COMPLIANCE.md`). The crop-to-9:16, color grade, captions, ducked music and
+> original voiceover transform the material.
+
+---
+
+## 11c. Trend-anchored ideation (temas em alta, nunca aleatórios)
+
+Ideas are anchored in **real, fresh demand** before scripting (`src/ideation.py`):
+
+| Source | What it gives | Key |
+|---|---|---|
+| Google News RSS (`when:7d`, localized pt-BR) | this week's real headlines in the niche | no |
+| YouTube autocomplete | what people search right now (order ≈ demand) | no |
+| DDG News | extra headlines, filtered to ≤7 days | no |
+
+Per-channel config in `config/channels.yaml`:
+
+```yaml
+    trends:
+      mode: strict                # strict = reject unanchored ideas | mixed = prefer
+      sources: [google_news, ddg_news, yt_suggest]
+      news_query: "GTA 6 when:7d" # Google News query (when: operator supported)
+      seed: "gta 6"               # YouTube autocomplete seed
+```
+
+Flow: fetch seeds → the LLM generates 6 ideas, each carrying a `trend_anchor` (the exact
+seed it rides) → a cheap second LLM call scores trend relevance 0-10 → winner =
+`trend*0.6 + save_worthiness*0.4`. In `strict` mode the anchor must actually match a
+fetched seed (fuzzy token match) or the idea is regenerated once; if every trend source
+fails, ideation falls back to evergreen niche knowledge with a warning — the run never
+breaks. Example log line:
+
+```
+✓ idea: "GTA 6 pode chegar ao PC mais cedo? O que está por trás do rumor"
+  (save-worthiness 5/5 · trend 9/10 · anchor: "Por que GTA 6 pode chegar ao PC mais cedo - Exame")
+```
+
+> Sources are read-only public endpoints (1–3 calls per video). If they block your IP the
+> log shows `trend source ... failed` and the run continues evergreen.
+
+---
+
 ## 12. Project layout
 
 ```
 config/        settings.yaml · channels.yaml · prompts/    ← what to make
 src/           the 9-stage pipeline (one module per stage)
   ├── orchestrator.py   runs all stages; CLI entrypoint
-  ├── ideation.py       stage 1 — pick a viral idea
+  ├── ideation.py       stage 1 — trend-anchored idea (News RSS + YT autocomplete)
   ├── scriptwriter.py   stage 2 — hook + beats + closer
   ├── voiceover.py      stage 3 — TTS narration
-  ├── visuals.py        stage 4 — stock/AI B-roll
+  ├── visuals.py        stage 4 — stock / multi-source scraper B-roll (free)
+  ├── rank.py           stage 4 — candidate ranking (relevance/quality/license)
   ├── captions.py       stage 5 — word-level ASS captions
   ├── assemble.py       stage 6 — ffmpeg 9:16 render
   ├── metadata.py       stage 7 — titles/desc/hashtags
@@ -399,7 +495,7 @@ src/           the 9-stage pipeline (one module per stage)
 webapp/        FastAPI dashboard + no-build web UI (static/)
 assets/        music · fonts · overlays (you supply licensed assets)
 output/        generated videos + metadata json per run · history.json
-scripts/       install_mac.sh · run_daily.sh · serve.sh
+scripts/       install_mac.sh · run_daily.sh · serve.sh · test_rank.py (scraper ranking smoke-test)
 docs/          the human strategy guidelines
 ```
 
@@ -443,6 +539,8 @@ python -m src.orchestrator --channel <key>   # which channel block to run
 | `ffmpeg: command not found` | Re-run `bash scripts/install_mac.sh` — it auto-downloads a static ffmpeg into `.venv/bin` even **without Homebrew**. (With brew: `brew install ffmpeg`.) Note: ffmpeg lives in the venv, so activate it (`source .venv/bin/activate`) before CLI runs. |
 | Captions stage is slow the first time | `faster-whisper` downloads its model once (~150 MB for `base`). Subsequent runs are fast. |
 | Video has no background music | Add `.mp3` files to `assets/music/`. Videos build silent-under-narration without it. |
+| Scraper returns few/no results | Fill free keys in `.env` (`PIXABAY_API_KEY`, `UNSPLASH_ACCESS_KEY`, `GOOGLE_API_KEY`+`GOOGLE_CX`, `GIPHY_API_KEY`) — keyless sources still work. Check `clips/*.json` for per-beat ranking. |
+| `yt-dlp` fails / 429 | `pip install -U yt-dlp` (sites change often); the scraper auto-falls through to Pixabay/DDG/Openverse. |
 | Whisper too slow / inaccurate | Change `captions.model` in `settings.yaml`: `tiny` (fastest) → `base` → `small` (most accurate). |
 | Publish does nothing | Check `publish.provider` isn't `dry_run`, the aggregator key is in `.env`, and your social accounts are connected in the aggregator's dashboard. |
 

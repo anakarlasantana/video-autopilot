@@ -38,16 +38,72 @@ def slugify(text: str, max_len: int = 50) -> str:
     return s[:max_len].strip("-") or "video"
 
 
+def _repair_json(raw: str) -> str:
+    """Escape literal control chars inside strings, drop trailing commas."""
+    fixed = re.sub(r",\s*([}\]])", r"\1", raw)
+    out: list[str] = []
+    in_str = False
+    esc = False
+    for ch in fixed:
+        if in_str:
+            if esc:
+                out.append(ch)
+                esc = False
+            elif ch == "\\":
+                out.append(ch)
+                esc = True
+            elif ch == '"':
+                out.append(ch)
+                in_str = False
+            elif ch == "\n":
+                out.append("\\n")
+            elif ch == "\r":
+                out.append("\\r")
+            elif ch == "\t":
+                out.append("\\t")
+            else:
+                out.append(ch)
+        else:
+            out.append(ch)
+            if ch == '"':
+                in_str = True
+    return "".join(out)
+
+
 def extract_json(text: str) -> dict:
-    """Pull the first JSON object out of an LLM response (handles ```json fences)."""
-    text = text.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.MULTILINE).strip()
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end == -1:
-        raise ValueError(f"No JSON object found in model output:\n{text[:500]}")
-    return json.loads(text[start : end + 1])
+    """Pull the first JSON value (object or array) out of an LLM response.
+
+    Handles ```json fences, raw control chars inside strings (gpt-oss habit),
+    trailing commas, and trailing garbage after the first complete value
+    ("Extra data" errors when models emit two objects back-to-back).
+    """
+    t = text.strip()
+    if t.startswith("```"):
+        t = re.sub(r"^```(?:json)?\s*|\s*```$", "", t, flags=re.MULTILINE).strip()
+    spans: list[str] = []
+    for opener, closer in (("{", "}"), ("[", "]")):
+        i, j = t.find(opener), t.rfind(closer)
+        if i != -1 and j > i:
+            spans.append(t[i:j + 1])
+    if not spans:
+        raise ValueError(f"No JSON object found in model output:\n{t[:500]}")
+    dec = json.JSONDecoder()
+    # pass 1 — exact full parse (a complete array beats a partial first object)
+    for raw in spans:
+        for cand in (raw, _repair_json(raw)):
+            try:
+                return json.loads(cand)
+            except json.JSONDecodeError:
+                pass
+    # pass 2 — tolerate trailing data after the first complete value
+    for raw in spans:
+        for cand in (raw, _repair_json(raw)):
+            try:
+                val, _ = dec.raw_decode(cand)
+                return val
+            except json.JSONDecodeError:
+                continue
+    return json.loads(spans[0], strict=False)  # last resort; raises if hopeless
 
 
 def run_dir(output_dir: str, channel_key: str, slug: str) -> Path:

@@ -24,15 +24,19 @@ def synthesize(cfg: dict, text: str, out_dir: Path) -> Path:
     # speed-up → de-rumble → compress for consistent level → presence EQ →
     # tame harsh sibilance → normalize to -16 LUFS (leaves headroom for music;
     # the final mix is brought to platform -14 LUFS in assemble.py).
+    # A subtle reverb + warmer EQ reduce the "robotic" edge-tts feel.
     speed = cfg["tts"].get("speed", 1.0)
+    room = cfg["tts"].get("voice_room", 0.08)  # 0=dry, 0.15=larger room
     chain = (
         f"atempo={speed},"
         "highpass=f=85,"                                  # cut low rumble/hum
-        "acompressor=threshold=-20dB:ratio=3.5:attack=5:release=140:makeup=3,"  # even, punchy level
+        "acompressor=threshold=-22dB:ratio=3:attack=8:release=160:makeup=2,"  # gentler, more natural
         "equalizer=f=180:t=q:w=1.0:g=-2,"                 # de-mud the low-mids
+        "equalizer=f=500:t=q:w=1.5:g=1.5,"                # warm body (less telephone-like)
         "equalizer=f=3200:t=q:w=1.6:g=3,"                 # presence/intelligibility lift
-        "treble=g=2:f=9000,"                              # subtle air
-        "deesser=i=0.35,"                                 # reduce harsh "s" sounds
+        "treble=g=1.5:f=9000,"                            # subtle air
+        "deesser=i=0.4,"                                  # reduce harsh "s" sounds
+        f"aecho=0.8:0.7:{60+int(room*100)}:0.25,"          # subtle room -> less robotic
         "loudnorm=I=-16:TP=-1.5:LRA=11,"
         "alimiter=limit=0.95"                             # safety ceiling, no clipping
     )

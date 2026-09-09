@@ -9,7 +9,7 @@
 #               Keep "en" for the best Pexels matches even when producing
 #               pt-BR content (the search terms never appear in the video).
 language:
-  code: pt-BR
+  code: Portuguese (Brazil)   # natural name — "pt-BR" alone is weakly followed by small LLMs
   visuals: en
 
 llm:
@@ -20,9 +20,8 @@ llm:
   #   FREE  groq       fast, generous free tier — model: llama-3.3-70b-versatile
   #   FREE  openrouter many free models — model: meta-llama/llama-3.1-8b-instruct:free
   #   FREE  gemini     Google free tier — model: gemini-flash-latest (auto-tracks newest flash)
-  provider: ollama
-  model: llama3.2:3b 
-  base_url: http://localhost:11434/v1 
+  provider: groq
+  model: openai/gpt-oss-20b
   temperature: 0.9             # higher = more creative hooks
 
 tts:
@@ -35,8 +34,26 @@ tts:
   elevenlabs_stability: 0.4
 
 visuals:
-  provider: pexels             # pexels (free stock) | fal | replicate (AI images)
-  clips_per_video: 12          # ~1 visual per 2–3s of a 25–35s video
+  provider: auto               # pexels | scraper | auto (pexels->scraper)
+  # NOTE: AI image generators (fal/replicate) are NOT in the fallback chain.
+  # They can generate people/figures that don't match the theme/script.
+  # Only real stock footage sources are used to ensure clips match the topic.
+  fallback_chain: [pexels, scraper]  # order tried when provider=auto
+  scraper_mode: best           # best (parallel search + ranking) | first (sequential cascade)
+  # PROFESSIONAL: Prioritize high-quality video sources (YouTube HD, Pexels, Unsplash)
+  # Order matters: first sources have better quality/consistency
+  scraper_sources: [youtube, ddg_video_ytdlp, pexels_photo, unsplash, pixabay, ddg_image]
+  candidates_per_source: 5     # PROFESSIONAL: more candidates = better selection (metadata only)
+  max_workers: 8               # PROFESSIONAL: more parallel threads for faster search
+  # PROFESSIONAL: Quality-first ranking - prioritize HD footage and vertical format
+  rank_weights: { relevance: 35, quality: 35, vertical: 15, duration_fit: 10, license: 5 }
+  scraper_max_seconds: 10      # PROFESSIONAL: slightly longer clips for flexibility
+  scraper_cc_only: false       # true = prefer Creative Commons (safer, fewer results)
+  scraper_timeout: 120         # PROFESSIONAL: more timeout for HD downloads
+  min_clip_seconds: 1.5        # PROFESSIONAL: ensure clips are long enough
+  min_clip_bytes: 200000       # PROFESSIONAL: higher minimum for HD quality
+  dedup_reuse_penalty: 30      # PROFESSIONAL: stronger penalty for reused clips
+  clips_per_video: 16          # PROFESSIONAL: more clips = smoother transitions
   orientation: portrait        # portrait b-roll for 9:16
   ai_image_style: "cinematic, high detail, dramatic lighting, vertical 9:16"
 
@@ -63,14 +80,14 @@ video:
   height: 1920
   fps: 30
   target_seconds: 34           # Playbook §4 sweet spot; 21–45 range
-  cut_every_seconds: 2.3       # visual change cadence (retention)
+  cut_every_seconds: 2.0       # PROFESSIONAL: smoother cadence for professional feel
   loudness_lufs: -14           # platform-normalized loudness
-  music_volume_db: -20         # ducked under voiceover (sidechain keeps voice clear)
+  music_volume_db: -22         # PROFESSIONAL: music slightly lower for clarity
   add_progress_bar: true       # subtle bottom progress bar boosts completion
   progress_bar_color: "0x06D6A0"  # accent color (teal); 0xRRGGBB
   color_grade: true            # cinematic contrast/saturation/vignette pass
-  crf: 19                      # x264 quality (lower = better; 18–20 is crisp)
-  encode_preset: medium        # x264 speed/quality; slow = best, medium = balanced
+  crf: 18                      # PROFESSIONAL: highest quality (18 = visually lossless)
+  encode_preset: slow          # PROFESSIONAL: slow preset = best compression/quality
   safe_zone_padding: 220       # keep captions out of platform UI overlap
 
 metadata:

@@ -45,7 +45,13 @@ def channel_config(channel_key: str) -> dict:
             f"Channel '{channel_key}' not found. Available: {', '.join(channels) or '(none)'}"
         )
     cfg = deepcopy(settings)
-    cfg["channel"] = deepcopy(channels[channel_key])
+    ch = deepcopy(channels[channel_key])
+    # Deep-merge per-channel section overrides (e.g. visuals:, video:, tts:, llm:)
+    # into the matching global section, so a channel can swap providers locally.
+    for key, val in ch.items():
+        if key in cfg and isinstance(cfg[key], dict) and isinstance(val, dict):
+            cfg[key] = {**cfg[key], **val}
+    cfg["channel"] = ch
     cfg["channel"]["key"] = channel_key
 
     # Per-channel voice override flows into the active tts provider.
