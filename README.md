@@ -239,6 +239,32 @@ python -m src.orchestrator --channel motivation --count 1 --dry-run
 
 Watch the 9 stages run. When it finishes, your video and all its metadata are in:
 
+### Inspiration mode (analyze viral references — free)
+
+Learn from any viral TikTok / Instagram Reel / YouTube Short, then let the pipeline
+produce an **original** video that adapts the analyzed pattern (structure + pacing
+only — never the content):
+
+```bash
+# 1) discover candidate references by niche/hashtag (yt-dlp, free, no key)
+python -m src.orchestrator --channel motivation --discover "discipline motivation" --source yt_shorts
+
+# 2) analyze one URL → data/references/<channel>/<slug>/analysis.json (+ summary.md)
+python -m src.analyzer --channel motivation --url https://www.tiktok.com/@user/video/123
+
+# 3) build a video adapted from that reference (analyze → write → edit in one run)
+python -m src.orchestrator --channel motivation --reference <URL> --dry-run
+#    re-run with the cached analysis instead of re-analyzing:
+python -m src.orchestrator --channel motivation --use-latest --dry-run
+```
+
+Flow: yt-dlp download → faster-whisper transcript (local) → LLM structural analysis
+(hook mechanism, scene functions, pacing, CTA) → scriptwriter ADAPTS the pattern with
+an anti-copy contract. The summary is also dropped in `data/notes/<channel>/`, so every
+future run keeps learning from it. All free (transcription + analysis run locally /
+on your configured LLM); providers are swappable in `config/settings.yaml → inspiration:`
+(`transcriber`, `vision`, `cookies_from_browser` for Instagram).
+
 ```
 output/<today>/motivation/<slug>/
 ├── final.mp4        ← the finished 9:16 video

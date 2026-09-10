@@ -21,6 +21,12 @@ VOICE REFERENCE — the creator's own past scripts. Match this voice, rhythm, an
 CREATOR STRATEGY & NOTES — the creator's guidance; follow it when present:
 {creator_notes}
 
+REFERENCE PATTERN — a viral video that was structurally analyzed for inspiration.
+ADAPT the mechanism, NEVER copy: keep the narrative order, beat functions, and pacing;
+replace ALL content (topic, examples, jokes, characters, setting, and every sentence).
+No phrase, joke, or element listed in "elementos originais" may survive into this script:
+{reference_pattern}
+
 ═══ THE HOOK (first line — most important line of the whole video) ═══
 The first 3 seconds decide everything. Write a hook ≤12 words that does ONE of these:
 - Names a mistake the viewer is probably making ("You're charging your phone wrong.")

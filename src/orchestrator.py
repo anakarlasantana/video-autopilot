@@ -14,6 +14,7 @@ import traceback
 from . import analytics
 from .assemble import assemble
 from .captions import build_captions
+from .analyzer import analyze_reference, discover_references, latest_reference
 from .config import all_channel_keys, channel_config
 from .ideation import generate_idea
 from .metadata import build_metadata
@@ -25,12 +26,13 @@ from .visuals import gather_visuals
 from .voiceover import synthesize
 
 
-def make_one(cfg: dict) -> dict:
+def make_one(cfg: dict, reference: dict | None = None) -> dict:
     ch = cfg["channel"]
-    banner(f"🎬 {ch['name']} ({ch['key']}) — building 1 video")
+    ref_note = f" [reference: {reference.get('reference_url', '')}]" if reference else ""
+    banner(f"🎬 {ch['name']} ({ch['key']}) — building 1 video{ref_note}")
 
     idea = generate_idea(cfg)                                    # 1
-    script = write_script(cfg, idea)                             # 2
+    script = write_script(cfg, idea, reference)                  # 2 (adapts pattern)
     slug = slugify(idea["title"])
     out = run_dir(cfg["output_dir"], ch["key"], slug)
 
@@ -47,6 +49,9 @@ def make_one(cfg: dict) -> dict:
     save_json(out / "metadata.json", {
         "idea": idea, "script": script, "metadata": meta, "publish": result,
         "video": str(video),
+        "reference": ({"url": reference.get("reference_url"),
+                       "platform": reference.get("reference_platform")}
+                      if reference else None),
     })
     record_topic(ch["key"], idea["title"])                      # history (anti-repeat)
     analytics.record_run(ch["key"], slug, meta, result)         # 9 feedback log
@@ -54,7 +59,8 @@ def make_one(cfg: dict) -> dict:
     return {"slug": slug, "out": str(out), "result": result}
 
 
-def run_channel(channel_key: str, count: int, dry_run: bool) -> None:
+def run_channel(channel_key: str, count: int, dry_run: bool,
+                reference: dict | None = None) -> None:
     cfg = channel_config(channel_key)
     if dry_run:
         cfg["publish"]["provider"] = "dry_run"
@@ -62,7 +68,7 @@ def run_channel(channel_key: str, count: int, dry_run: bool) -> None:
         if count > 1:
             banner(f"── video {i + 1} of {count} ──")
         try:
-            make_one(cfg)
+            make_one(cfg, reference)
         except Exception as e:
             log(f"FAILED video {i + 1}: {e}", "err")
             traceback.print_exc()
@@ -75,18 +81,58 @@ def main() -> None:
     p.add_argument("--all", action="store_true", help="run every channel (posts_per_day each)")
     p.add_argument("--dry-run", action="store_true", help="build locally, do not post")
     p.add_argument("--report", action="store_true", help="print analytics report and exit")
+    # Inspiration mode: build a video adapted from an analyzed viral reference.
+    p.add_argument("--reference", metavar="URL",
+                   help="TikTok / Reel / Short URL to analyze and adapt the pattern from")
+    p.add_argument("--use-latest", action="store_true",
+                   help="reuse the channel's most recent analyzed reference (no re-analysis)")
+    p.add_argument("--discover", metavar="QUERY",
+                   help="list reference candidates for a niche/hashtag, then exit")
+    p.add_argument("--source", default="yt_shorts",
+                   choices=["yt_shorts", "tiktok_tag", "tikwm"],
+                   help="discovery source for --discover (default: yt_shorts)")
     args = p.parse_args()
 
     if args.report:
         analytics.report(args.channel)
         return
 
+    if args.channel and args.discover:
+        cfg = channel_config(args.channel)
+        if args.dry_run:
+            cfg["publish"]["provider"] = "dry_run"
+        refs = discover_references(cfg, args.discover, args.source,
+                                   n=int(cfg.get("inspiration", {}).get("discover_n", 8)))
+        for r in refs:
+            print(f"  {r['views']:>10,} views · {r['duration']:5.0f}s · "
+                  f"{r['platform']:8s} {r['title'][:70]}\n"
+                  f"    {'':>12}{r['url']}")
+        return
+
+    reference = None
+    if args.reference:
+        if not args.channel:
+            p.error("--reference requires --channel")
+        cfg = channel_config(args.channel)
+        if args.dry_run:
+            cfg["publish"]["provider"] = "dry_run"
+        reference = analyze_reference(cfg, args.reference)
+    elif args.use_latest:
+        if not args.channel:
+            p.error("--use-latest requires --channel")
+        reference = latest_reference(args.channel)
+        if not reference:
+            raise SystemExit(
+                f"no analyzed reference found for '{args.channel}' — "
+                f"run with --reference <URL> first")
+
     if args.all:
         for key in all_channel_keys():
             cfg = channel_config(key)
-            run_channel(key, cfg["channel"].get("posts_per_day", 1), args.dry_run)
+            run_channel(key, cfg["channel"].get("posts_per_day", 1), args.dry_run,
+                        reference if key == args.channel else None)
     elif args.channel:
-        run_channel(args.channel, args.count, args.dry_run)
+        run_channel(args.channel, args.count, args.dry_run, reference)
     else:
         p.error("provide --channel <key>, or --all, or --report")
 

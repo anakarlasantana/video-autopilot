@@ -6,6 +6,7 @@ import json
 from .config import load_prompt
 from .knowledge import strategy_notes, style_examples
 from .llm import complete
+from .analyzer import reference_pattern_block
 from .utils import extract_json, log
 
 
@@ -82,7 +83,7 @@ def _enrich_cues(script: dict, idea: dict) -> dict:
     return script
 
 
-def write_script(cfg: dict, idea: dict) -> dict:
+def write_script(cfg: dict, idea: dict, reference: dict | None = None) -> dict:
     ch = cfg["channel"]
     target = cfg["video"]["target_seconds"]
     lang = cfg.get("language", {}).get("code", "English")
@@ -103,6 +104,9 @@ def write_script(cfg: dict, idea: dict) -> dict:
 
     voice_ref = style_examples(ch["key"])
     notes = strategy_notes(ch["key"])
+    # Inspiration mode: a analyzed reference's PATTERN (structure/pacing) is offered
+    # as something to ADAPT — never to copy. Everything content-level stays original.
+    reference_block = reference_pattern_block(reference)
     prompt = load_prompt("script").format(
         niche=ch["niche"], name=ch["name"], tone=ch["tone"], audience=ch["audience"],
         language=lang, visual_language=visuals_lang,
@@ -111,6 +115,7 @@ def write_script(cfg: dict, idea: dict) -> dict:
         search_question=idea.get("search_question", ""),
         style_reference=voice_ref or "(none provided — use the tone above)",
         creator_notes=notes or "(none provided)",
+        reference_pattern=reference_block or "(none provided — no reference analyzed)",
         target_seconds=target, word_budget=word_budget, word_budget_max=word_budget_max,
         disclaimer_line=disclaimer_line,
     )

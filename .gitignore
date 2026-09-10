@@ -10,8 +10,10 @@ output/*
 # Force-add (git add -f data/...) only if you want the cloud autopilot to use it. See data/README.md.
 data/scripts/*
 data/notes/*
+data/references/*
 !data/scripts/.gitkeep
 !data/notes/.gitkeep
+!data/references/.gitkeep
 assets/music/*
 !assets/music/.gitkeep
 assets/fonts/*

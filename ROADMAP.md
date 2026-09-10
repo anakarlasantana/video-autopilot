@@ -9,7 +9,7 @@ Tick a box when something ships, move rows between sections, and keep the dates 
 > 🤖 **Auto-maintained.** This file is kept current automatically — every shipped feature,
 > status change, and new idea is recorded here as work happens, without needing to be asked.
 
-_Last updated: 2026-06-26_
+_Last updated: 2026-09-10_
 
 ---
 
@@ -43,6 +43,17 @@ _Last updated: 2026-06-26_
 - [x] **Ingest existing content data** — drop past scripts/captions in `data/scripts/` and
   strategy/notes in `data/notes/`; the scriptwriter matches your voice and ideation follows your
   strategy. Per-channel subfolders supported. Private by default (git-ignored). ([data/README.md](data/README.md))
+
+### Inspiration mode (reference analysis)
+- [x] **Analyze viral references** — any TikTok / Reel / Short URL: yt-dlp download →
+  local Whisper transcript → LLM structural analysis (hook mechanism, scene functions,
+  pacing, CTA) saved to `data/references/<channel>/`. Free end-to-end.
+- [x] **Pattern-adapted scriptwriter** — the analyzed structure is injected as a
+  pattern-to-adapt with an anti-copy contract; output stays original.
+- [x] **Reference discovery** — `--discover "niche"` lists Shorts/TikTok-tag candidates
+  ranked by views (no key needed).
+- [x] Provider abstraction — `inspiration.transcriber` (whisper_local | api-stub) and
+  `inspiration.vision` (none | frames) swap via config; Instagram cookies supported.
 
 ---
 
