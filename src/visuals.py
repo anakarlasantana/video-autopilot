@@ -21,6 +21,7 @@ from .config import env
 from .rank import Candidate, rank_candidates
 from .utils import ffprobe_duration, log
 from .image_generator import generate_scene_image
+from .search_smart import smart_query_enrichment, extract_named_entities
 
 UA = {"User-Agent": "video-autopilot/1.0 (B-roll scraper; +https://github.com/anakarlasantana/video-autopilot)"}
 
@@ -52,7 +53,7 @@ def gather_visuals(cfg: dict, script: dict, out_dir: Path, duration: float,
     prefer_videos = bool(cfg["channel"].get("prefer_videos", False))
     source_priority = cfg["channel"].get("source_priority")  # optional custom order
 
-    # Map each beat's visual cue across the segments it covers, so visuals track the
+        # Map each beat's visual cue across the segments it covers, so visuals track the
     # words being spoken. Pad/repeat to fill, fall back to the channel's visual style.
     cues = [b.get("visual_cue", "").strip() for b in script.get("beats", [])
             if b.get("visual_cue")]
@@ -62,6 +63,40 @@ def gather_visuals(cfg: dict, script: dict, out_dir: Path, duration: float,
         queries = [cues[int(i * len(cues) / needed)] for i in range(needed)]
     else:
         queries = [style] * needed
+
+    # SMART SEARCH: Enriquecer queries com conteúdo oficial de marcas/jogos
+    # Extrai entidades do texto completo do roteiro (não só visual_cues)
+    script_text = script.get("full_script", "")
+    if not script_text:
+        # Construir texto do roteiro a partir dos beats
+        script_text = " ".join(b.get("text", "") for b in script.get("beats", []))
+    
+    # Extrair entidades nomeadas (jogos, marcas, pessoas)
+    named_entities = extract_named_entities(script_text)
+    
+    # Se entidades foram identificadas, enriquece as queries
+    if named_entities:
+        log(f"smart_search: detected entities: {', '.join(e[0] for e in named_entities[:3])}", "info")
+        
+        # Criar mapeamento de queries enriquecidas
+        enriched_queries: list[str] = []
+        unique_queries_original: set[str] = set()
+        
+        for q in queries:
+            if q in unique_queries_original:
+                # Query repetida - usar query original para diversidade
+                enriched_queries.append(q)
+            else:
+                unique_queries_original.add(q)
+                # Enriquecer query com conteúdo oficial
+                if named_entities and q:
+                    enriched = smart_query_enrichment(q, script_text, topic_words)
+                    # Usar a primeira query enriquecida (prioridade oficial)
+                    enriched_queries.append(enriched[0] if enriched else q)
+                else:
+                    enriched_queries.append(q)
+        
+        queries = enriched_queries
 
     provider = cfg["visuals"]["provider"]
     chain_map = {"auto": cfg["visuals"].get("fallback_chain", ["pexels", "scraper"])}
