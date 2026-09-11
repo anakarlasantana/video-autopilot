@@ -65,6 +65,22 @@ def _normalize_segment(src: Path, dest: Path, seconds: float, fps: int, idx: int
     run_ffmpeg(args)
 
 
+def _normalize_segment_fast(src: Path, dest: Path, seconds: float, fps: int, idx: int) -> None:
+    """Fast version: skip zoompan for images, use simple scale/crop."""
+    is_image = src.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")
+    vf = f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1"
+
+    if is_image:
+        # For images: loop to generate enough frames for the duration
+        args = ["-loop", "1", "-i", str(src), "-vf", vf, "-r", str(fps), "-pix_fmt", "yuv420p",
+                "-t", f"{seconds}", "-an", str(dest)]
+    else:
+        # For videos: loop and trim
+        args = ["-stream_loop", "-1", "-t", f"{seconds}", "-i", str(src),
+                "-vf", vf, "-r", str(fps), "-pix_fmt", "yuv420p", "-an", str(dest)]
+    run_ffmpeg(args)
+
+
 def _validate_clips(clips: list[Path], cut: float) -> dict:
     """Validate clips and return statistics about the B-roll quality.
 
@@ -235,24 +251,33 @@ def assemble(cfg: dict, clips: list, voice: Path, captions: Optional[Path],
     # Build enough normalized segments to cover the voiceover.
     n_segments = max(1, int(total // cut) + 1)
     segments = []
-    for i in range(n_segments):
-        src = clips[i % len(clips)]
+    
+    # Parallel segment normalization for speed
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    def _process_segment(args):
+        i, src = args
         dest = seg_dir / f"seg{i:02d}.mp4"
-        _normalize_segment(src, dest, cut, fps, i)
-        segments.append(dest)
+        _normalize_segment_fast(src, dest, cut, fps, i)
+        return dest
+    
+    log(f"video: normalizing {n_segments} segments (parallel)...", "info")
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        futures = [ex.submit(_process_segment, (i, clips[i % len(clips)])) 
+                   for i in range(n_segments)]
+        for future in as_completed(futures, timeout=120):
+            segments.append(future.result())
+    
+    # Sort segments by name to maintain order
+    segments.sort(key=lambda p: p.name)
 
-    # ── Build video with crossfade transitions ──
-    try:
-        silent = _build_concat_with_crossfade(segments, seg_dir, total)
-        log(f"video: built with {CROSSFADE_DURATION}s crossfade transitions", "info")
-    except Exception as e:
-        # Fallback to simple concat if crossfade fails
-        log(f"crossfade failed ({e}), falling back to simple concat", "warn")
-        concat_list = seg_dir / "list.txt"
-        concat_list.write_text("".join(f"file '{s.name}'\n" for s in segments), encoding="utf-8")
-        silent = out_dir / "silent.mp4"
-        run_ffmpeg(["-f", "concat", "-safe", "0", "-i", str(concat_list),
-                    "-t", f"{total}", "-c", "copy", str(silent)])
+    # ── Build video: use simple concat for speed ──
+    # Crossfade is nice but slow; use simple concat for faster processing
+    concat_list = seg_dir / "list.txt"
+    concat_list.write_text("".join(f"file '{s.name}'\n" for s in segments), encoding="utf-8")
+    silent = out_dir / "silent.mp4"
+    run_ffmpeg(["-f", "concat", "-safe", "0", "-i", str(concat_list),
+                "-t", f"{total}", "-c", "copy", str(silent)])
 
     # Audio mix: mastered voiceover + ducked background music (if any track present).
     music = _pick_music(cfg)

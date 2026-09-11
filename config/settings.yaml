@@ -1,0 +1,132 @@
+# ── Global pipeline settings ─────────────────────────────────────────────────
+# Provider choices: swap these to change adapters with zero code changes.
+
+# ── Language ─────────────────────────────────────────────────────────────────
+# `code`      → the language for ALL written content the LLM produces: scripts,
+#               voiceover text, on-screen captions, titles, descriptions,
+#               hashtags and comments.
+# `visuals`   → the language for the internal B-roll stock-search terms only.
+#               Keep "en" for the best Pexels matches even when producing
+#               pt-BR content (the search terms never appear in the video).
+language:
+  code: Portuguese (Brazil)   # natural name — "pt-BR" alone is weakly followed by small LLMs
+  visuals: en
+
+llm:
+  # provider options:
+  #   PAID  anthropic  (model: claude-opus-4-8 best | claude-sonnet-4-6 fast/cheap)
+  #   PAID  openai     (model: gpt-4o-mini | gpt-4o)
+  #   FREE  ollama     100% local, no key — run `ollama serve` + `ollama pull llama3.1`
+  #   FREE  groq       fast, generous free tier — model: llama-3.3-70b-versatile
+  #   FREE  openrouter many free models — model: meta-llama/llama-3.1-8b-instruct:free
+  #   FREE  gemini     Google free tier — model: gemini-flash-latest (auto-tracks newest flash)
+  provider: groq
+  model: openai/gpt-oss-20b
+  temperature: 0.9             # higher = more creative hooks
+
+# ── Inspiration mode (src/analyzer.py) — analyze viral references for inspiration ──
+# Everything here is FREE by default. Paid providers plug in via config only.
+inspiration:
+  transcriber: whisper_local   # whisper_local (free, no key) | api (future stub)
+  whisper_model: base          # tiny | base | small (speed vs accuracy)
+  vision: none                 # none (free default) | frames → describe visual style
+                               #   from keyframes (needs a vision-capable llm provider,
+                               #   e.g. anthropic claude)
+  cookies_from_browser: ""     # "" | firefox | chrome | brave — Instagram usually
+                               #   requires this; TikTok works better with it too
+  instagram:
+    cookies_file: "cookies/tiktok.txt"  # opcional
+    source: "reels"      # fontes: reels (hashtag ou @perfil), cookies
+  tiktok:
+    cookies_file: "cookies/tiktok.txt"   # opcional
+    source: "cookies"    # fontes: tag, cookies, yt_shorts
+  discover_n: 8                # candidates listed by --discover
+
+tts:
+  provider: edge               # edge (free, no key) | elevenlabs (premium)
+  speed: 1.08                  # 1.05–1.15 reads energetic; Playbook §2
+  edge_voice: pt-BR-FranciscaNeural  # see `edge-tts --list-voices` (pt-BR voices available)
+  edge_rate: "+0%"             # extra pacing on top of speed; e.g. "+8%"
+  edge_pitch: "+0Hz"           # subtle warmth/energy; e.g. "+2Hz"
+  elevenlabs_voice: Rachel     # ElevenLabs voice name/id (premium = best audio)
+  elevenlabs_stability: 0.4
+
+visuals:
+  provider: auto               # pexels | scraper | auto (pexels->scraper)
+  # NOTE: AI image generators (fal/replicate) are NOT in the fallback chain.
+  # They can generate people/figures that don't match the theme/script.
+  # Only real stock footage sources are used to ensure clips match the topic.
+  fallback_chain: [pexels, scraper]  # order tried when provider=auto
+  scraper_mode: best           # best (parallel search + ranking) | first (sequential cascade)
+  # Fast: only use image sources (images download in <1s vs 30s+ for videos)
+  # Videos are skipped for speed - images with Ken Burns effect work great
+  scraper_sources: [ddg_image, pexels_photo]
+  candidates_per_source: 3     # reduced for faster search
+  max_workers: 4               # parallel threads for search
+  # Balanced quality/speed ranking
+  rank_weights: { relevance: 40, quality: 25, vertical: 15, duration_fit: 10, license: 10 }
+  scraper_max_seconds: 5       # shorter clips for faster download
+  scraper_cc_only: false       # true = prefer Creative Commons (safer, fewer results)
+  scraper_timeout: 30          # reduced timeout for faster failure
+  min_clip_seconds: 1.0        # ensure clips are long enough
+  min_clip_bytes: 20000        # minimum for short excerpts (8-10s clips)
+  dedup_reuse_penalty: 30      # PROFESSIONAL: stronger penalty for reused clips
+  clips_per_video: 8           # reduced from 16 for faster processing
+  orientation: portrait        # portrait b-roll for 9:16
+  ai_image_style: "cinematic, high detail, dramatic lighting, vertical 9:16"
+
+captions:
+  enabled: true
+  model: base                  # whisper: tiny | base | small (accuracy vs speed)
+  language: pt                 # whisper language hint for word timing ("pt", "en", …)
+  hook_title_seconds: 2.6      # how long the animated hook title flashes on screen
+  style:
+    font: assets/fonts/Montserrat-ExtraBold.ttf
+    fontname: Montserrat       # font family name used inside the ASS
+    font_size: 92              # big, bold kinetic captions (auto-wraps to fit width)
+    primary_color: "&H00FFFFFF"   # white (ASS &HAABBGGRR)
+    highlight_color: "&H0000F2FF" # active-word highlight (vivid yellow)
+    outline_color: "&H00000000"   # black outline for legibility on any footage
+    outline: 5
+    shadow: 2
+    position: middle           # middle keeps eyes centered; top | middle | bottom
+    max_words_per_cue: 3       # word-by-word feel
+    uppercase: true
+
+video:
+  width: 1080
+  height: 1920
+  fps: 30
+  target_seconds: 34           # Playbook §4 sweet spot; 21–45 range
+  cut_every_seconds: 2.0       # PROFESSIONAL: smoother cadence for professional feel
+  loudness_lufs: -14           # platform-normalized loudness
+  music_volume_db: -22         # PROFESSIONAL: music slightly lower for clarity
+  add_progress_bar: true       # subtle bottom progress bar boosts completion
+  progress_bar_color: "0x06D6A0"  # accent color (teal); 0xRRGGBB
+  color_grade: true            # cinematic contrast/saturation/vignette pass
+  crf: 23                      # balanced quality/speed (18=best, 23=good, 28=fast)
+  encode_preset: ultrafast     # ultrafast = much slower encoding, good enough for social media
+  safe_zone_padding: 220       # keep captions out of platform UI overlap
+
+metadata:
+  title_variants: 3
+  hashtags_per_post: 5         # 1 broad + 3 niche + 1 branded (Playbook §5)
+
+publish:
+  provider: dry_run            # dry_run | ayrshare | upload_post
+  queue: false                 # true = generate + queue for manual review, don't post live
+  stagger_seconds: 300         # space platform uploads apart
+  platforms: [youtube, tiktok, instagram, facebook]
+
+compliance:
+  ai_disclosure: true          # adds AI-assisted note + platform synthetic-media flag
+  disclaimers:
+    finance: "Não é recomendação financeira. Apenas para fins educacionais."
+    health: "Não é recomendação médica. Consulte um profissional."
+
+output_dir: output
+logging:
+  level: DEBUG
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  handlers:
+    console: true   # força a saída para o terminal

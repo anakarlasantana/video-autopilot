@@ -28,3 +28,4 @@ google-api-python-client>=2.0  # Google Custom Search images (official, 100/day 
 # TikTok/Instagram access (TLS impersonation — passes Cloudflare-style checks;
 # used by the inspiration analyzer's tikwm mirror and yt-dlp's TikTok extractor)
 curl-cffi>=0.7
+TikTokApi>=6.0            # Unofficial TikTok API (free, needs Playwright)

@@ -1,7 +1,7 @@
 """Stage 4 — gather one vertical visual per beat.
 
 Providers: pexels (free stock), scraper (multi-source free, parallel+ranked),
-AI images (fal/leonardo), youtube shorts (free).
+fal / replicate (AI images).
 """
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ import math
 import re
 import shutil
 import subprocess
-import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional
@@ -20,19 +19,8 @@ import requests
 from .config import env
 from .rank import Candidate, rank_candidates
 from .utils import ffprobe_duration, log
-from .image_generator import generate_scene_image
 
 UA = {"User-Agent": "video-autopilot/1.0 (B-roll scraper; +https://github.com/anakarlasantana/video-autopilot)"}
-
-
-def _ytdlp_binary() -> list[str]:
-    # Prefer the yt_dlp module of the RUNNING interpreter (matches requirements.txt
-    # and stays updated with the venv) over a possibly stale system binary.
-    try:
-        import yt_dlp  # noqa: F401
-        return [sys.executable, "-m", "yt_dlp"]
-    except ImportError:
-        return ["yt-dlp"] if shutil.which("yt-dlp") else [sys.executable, "-m", "yt_dlp"]
 
 
 def gather_visuals(cfg: dict, script: dict, out_dir: Path, duration: float,
@@ -64,91 +52,68 @@ def gather_visuals(cfg: dict, script: dict, out_dir: Path, duration: float,
         queries = [style] * needed
 
     provider = cfg["visuals"]["provider"]
+    # NOTE: AI image generators (fal/replicate) are EXCLUDED from the fallback
+    # chain. They can generate people/figures that don't match the theme/script,
+    # so we only use real stock footage that is actually related to the topic.
     chain_map = {"auto": cfg["visuals"].get("fallback_chain", ["pexels", "scraper"])}
+    # Filter out AI providers from the chain — only use real B-roll sources
     chain_map = {k: [p for p in v if p not in ("fal", "replicate")] for k, v in chain_map.items()}
-
-    # Deduplicate queries for parallel processing
-    unique_queries = list(set(q for q in queries if q))
-    query_to_path: dict[str, Path] = {}
-
-    # Download unique queries in parallel
-    workers = min(4, len(unique_queries)) if unique_queries else 1
-    log(f"visuals: downloading {len(unique_queries)} unique queries ({workers} workers)...", "info")
-
-    def _download_one(query: str) -> tuple[str, Optional[Path]]:
-        """Download a single query. Returns (query, path) or (query, None) on failure."""
-        dest = clips_dir / f"dl_{hash(query) % 10000:04d}"
-        chain = chain_map.get(provider, [provider])
-        for p in chain:
-            try:
-                if p == "pexels":
-                    clip = _pexels_video(query, dest, cfg, set())
-                elif p == "scraper":
-                    clip = _scrape_visual(query, dest, cfg, set(), topic_words,
-                                          prefer_videos, source_priority, 0)
-                elif p in ("fal", "replicate"):
-                    clip = _ai_image(query, dest, cfg, p)
-                elif p == "ai_image":
-                    # Use the new image generator module
-                    clip = generate_scene_image(query, dest)
-                else:
-                    continue
-                # Quick validation - just check file exists and has size
-                if clip and clip.exists() and clip.stat().st_size > 10000:
-                    return (query, clip)
-            except Exception as e:
-                log(f"visual '{query[:30]}' provider={p} failed: {e}", "warn")
-                continue
-        
-        # Fallback: try AI image generation if all else fails
-        if "ai_image" not in chain and "fal" not in chain and "replicate" not in chain:
-            try:
-                clip = generate_scene_image(query, dest)
-                if clip and clip.exists() and clip.stat().st_size > 1000:
-                    return (query, clip)
-            except Exception as e:
-                log(f"visual '{query[:30]}' AI generation failed: {e}", "warn")
-        
-        return (query, None)
-
-    with ThreadPoolExecutor(max_workers=workers) as ex:
-        futures = {ex.submit(_download_one, q): q for q in unique_queries}
-        for future in as_completed(futures, timeout=120):
-            query, path = future.result()
-            if path:
-                query_to_path[query] = path
-                log(f"visual '{query[:30]}' downloaded", "info")
-
-    # Assemble final paths in order, reusing downloaded clips
+    used_ids: set = set()  # avoid downloading the same Pexels clip twice in a row
+    used_urls: set = set()  # avoid reusing the same scraper URL in one video
+    _qcache: dict[str, Path] = {}  # query -> gathered file (stretched beats reuse it)
+    _quses: dict[str, int] = {}  # query -> times already used (for variety)
     paths: list[Path] = []
     for i, q in enumerate(queries):
         dest = clips_dir / f"{i:02d}"
-        if q and q in query_to_path:
-            src = query_to_path[q]
+        if q and q in _qcache and _qcache[q].exists():
+            # same visual_cue stretched over several beats: copy instead of
+            # re-searching/re-downloading (turns 15 network hits into ~4)
+            src = _qcache[q]
             clip = dest.with_suffix(src.suffix)
-            if not clip.exists():
-                shutil.copyfile(src, clip)
+            shutil.copyfile(src, clip)
+            src_json = src.with_suffix(".json")
+            if src_json.exists():
+                shutil.copyfile(src_json, dest.with_suffix(".json"))
             paths.append(clip)
-            log(f"visual {i} ('{q[:30]}') reused from cache", "info")
-        elif paths:
-            # Reuse previous clip
-            src = paths[-1]
-            clip = dest.with_suffix(src.suffix)
-            if not clip.exists():
-                shutil.copyfile(src, clip)
-            paths.append(clip)
-            log(f"visual {i} reusing previous", "warn")
-        else:
+            log(f"visual {i} ('{q[:30]}') query cache hit", "info")
             continue
-
-    # Cleanup temp download files
-    for p in query_to_path.values():
-        try:
-            if p.exists() and "dl_" in p.name:
-                p.unlink()
-        except Exception:
-            pass
-
+        chain = chain_map.get(provider, [provider])
+        clip: Optional[Path] = None
+        for p in chain:
+            try:
+                if p == "pexels":
+                    clip = _pexels_video(q, dest, cfg, used_ids)
+                elif p == "scraper":
+                    clip = _scrape_visual(q, dest, cfg, used_urls, topic_words,
+                                          prefer_videos, source_priority,
+                                          _quses.get(q, 0))
+                elif p in ("fal", "replicate"):
+                    clip = _ai_image(q, dest, cfg, p)
+                else:
+                    raise ValueError(f"Unknown visuals.provider: {p}")
+                _validate_clip(clip, cfg, topic_words)
+                break
+            except Exception as e:  # one bad clip shouldn't kill the run
+                log(f"visual {i} ('{q[:30]}') provider={p} failed: {e}", "warn")
+                clip = None
+                continue
+        if clip is None:
+            if paths:
+                log(f"visual {i} ('{q[:30]}') reusing previous", "warn")
+                clip = paths[-1]
+            else:
+                continue
+        else:
+            final = dest.with_suffix(clip.suffix)
+            if clip != final and clip.exists():
+                if final.exists():
+                    final.unlink()
+                clip.rename(final)
+            clip = final
+            if q:
+                _qcache[q] = clip
+                _quses[q] = _quses.get(q, 0) + 1
+        paths.append(clip)
     if not paths:
         raise RuntimeError("No visuals could be gathered.")
     log(f"visuals: {len(paths)} clips ({provider})", "ok")
@@ -366,22 +331,23 @@ def _validate_downloaded_file(path: Path) -> None:
 
 
 def _download_ytdlp(page_url: str, dest: Path, cfg: dict) -> Path:
+    max_s = int(cfg["visuals"].get("scraper_max_seconds", 8))
     out = dest.with_suffix(".mp4")
     try:
         out.unlink(missing_ok=True)
     except Exception:
         pass
-    # Fast download: use lowest quality to get small files quickly.
-    # Format 18 (360p) is usually ~10MB for a 3-4 min video.
     base = ["--no-playlist",
-            "--format", "worst",
-            "--extractor-args", "youtube:player_client=android",
-            "--socket-timeout", "15",
-            "-o", str(out), "--retries", "1", "--no-warnings", page_url]
-    cmd = [*_ytdlp_binary(), *base]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
-    if proc.returncode != 0 or not out.exists() or out.stat().st_size < 10000:
-        raise RuntimeError(f"yt-dlp download failed: {(proc.stderr or proc.stdout)[-200:]}")
+            "--match-filter", "duration > 30",  # skip very short videos (<30s)
+            "--format", "mp4[height<=1080]/mp4/best[ext=mp4]/best",
+            "--download-sections", f"*00:00-00:0{max_s}",
+            "--force-keyframes-at-cuts", "--socket-timeout", "20",
+            "-o", str(out), "--retries", "2", "--no-warnings", page_url]
+    cmd = ["yt-dlp", *base] if shutil.which("yt-dlp") else ["python3", "-m", "yt_dlp", *base]
+    proc = subprocess.run(cmd, capture_output=True, text=True,
+                          timeout=int(cfg["visuals"].get("scraper_timeout", 90)))
+    if proc.returncode != 0 or not out.exists():
+        raise RuntimeError(f"yt-dlp download failed: {(proc.stderr or proc.stdout)[-500:]}")
     return out
 
 
@@ -420,9 +386,11 @@ def _validate_clip(path: Path, cfg: dict, topic_words: list[str] | None = None) 
 @_register("youtube")
 def _search_youtube(query: str, n: int, cfg: dict) -> list[Candidate]:
     n = max(1, min(n, 5))
-    cmd = [*_ytdlp_binary(), "--no-playlist", "--flat-playlist",
+    cmd = ["yt-dlp", "--no-playlist", "--flat-playlist",
            "--print", "%(id)s\t%(title)s\t%(duration)s",
            f"ytsearch{n}:{query}"]
+    if not shutil.which("yt-dlp"):
+        cmd = ["python3", "-m", "yt_dlp", *cmd[1:]]
     proc = subprocess.run(cmd, capture_output=True, text=True,
                           timeout=int(cfg["visuals"].get("scraper_timeout", 60)))
     if proc.returncode != 0:

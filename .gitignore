@@ -21,3 +21,4 @@ assets/fonts/*
 assets/overlays/*
 !assets/overlays/.gitkeep
 .DS_Store
+cookies/*

@@ -82,9 +82,10 @@ channels:
     inject_disclaimer: gaming
     posts_per_day: 2
     # Gaming: motion footage (gameplay/trailers) strongly preferred over stills,
-    # and YouTube is the primary source since Pexels has no game footage.
-    prefer_videos: true
-    source_priority: [youtube, ddg_video_ytdlp, ddg_image, pexels_photo]
+    # Gaming: images are faster to download and work well with Ken Burns effect
+    # Videos are optional fallback for variety
+    prefer_videos: false
+    source_priority: [ddg_image, pexels_photo, youtube, ddg_video_ytdlp]
     # Per-channel overrides (deep-merged into the global sections by src/config.py):
     trends:
       mode: strict
@@ -94,10 +95,9 @@ channels:
     visuals:
       provider: scraper          # GTA gameplay/trailers não existem no Pexels
       scraper_mode: best
-      # PROFESSIONAL: Prioritize YouTube for gaming footage, fallback to images
-      scraper_sources: [youtube, ddg_video_ytdlp, ddg_image, pexels_photo]
-      # PROFESSIONAL: Ensure we get video clips for gaming content
-      min_clip_seconds: 2.0
+      # Fast: only images (no videos - much faster)
+      scraper_sources: [ddg_image, pexels_photo]
+      min_clip_seconds: 1.0
     video:
       cut_every_seconds: 3.5      # PROFESSIONAL: slightly faster cuts for gaming energy
 
